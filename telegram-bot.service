@@ -1,0 +1,17 @@
+[Unit]
+Description=Jarvis Telegram Bot for Raspberry Pi
+After=network.target
+
+[Service]
+Type=simple
+User=rrocha
+WorkingDirectory=/home/rrocha/telegram-bot
+ExecStart=/usr/bin/python3 /home/rrocha/telegram-bot/telegram_bot.py
+Restart=always
+RestartSec=10
+Environment=TELEGRAM_BOT_TOKEN=your_token_here
+Environment=AUTHORIZED_USERS=your_user_id_here
+Environment=LOG_FILE="/home/rrocha/logs/jarvis.log"
+
+[Install]
+WantedBy=multi-user.target
