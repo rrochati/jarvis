@@ -199,20 +199,19 @@ async def get_uptime(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show help message"""
     help_text = """
-🤖 **Raspberry Pi Bot Commands:**
+    🤖 **Raspberry Pi Bot Commands:**
 
-/start - Start the bot
-/status - Get system status (CPU, memory, disk, temp)
-/apps - List running applications
-/restart_app <name> - Restart a systemd service
-/run <command> - Execute safe system commands
-/temp - Get CPU temperature
-/uptime - Get system uptime
-/help - Show this help message
+    /start - Start the bot
+    /status - Get system status (CPU, memory, disk, temp)
+    /apps - List running applications
+    /restart_app <name> - Restart a systemd service
+    /run <command> - Execute safe system commands
+    /temp - Get CPU temperature
+    /uptime - Get system uptime
+    /help - Show this help message
 
-**Security:** Only authorized users can use this bot.
-**Safe commands:** ls, ps, df, free, uptime, whoami, date
-"""
+    **Security:** Only authorized users can use this bot.
+    """
     await update.message.reply_text(help_text)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -221,6 +220,37 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     await update.message.reply_text("Use /help to see available commands!")
+
+async def custom_app_control(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Control your specific applications"""
+    if not context.args:
+        await update.message.reply_text("Usage: /app <start|stop|status> <app_name>")
+        return
+    
+    action = context.args[0]
+    app_name = context.args[1] if len(context.args) > 1 else None
+    action = context.args[2] if len(context.args) > 1 else None
+    
+    # Add your app-specific logic here
+    if app_name == "weather-station":
+        try:
+            result = subprocess.run(['sudo systemctl %s weather-station', action], capture_output=True, text=True, timeout=10)
+            
+            output = result.stdout if result.stdout else result.stderr
+            if len(output) > 4000:  # Telegram message limit
+                output = output[:4000] + "... (truncated)"
+                
+            await update.message.reply_text(f"```\n{output}\n```", parse_mode='Markdown')
+        
+        except subprocess.TimeoutExpired:
+            await update.message.reply_text("❌ Command timed out")
+        except Exception as e:
+            await update.message.reply_text(f"❌ Error executing command: {str(e)}")
+            pass
+    elif app_name == "sensor":
+        # Your sensor app control logic
+        pass
+````
 
 def main():
     """Start the bot."""
@@ -233,6 +263,7 @@ def main():
     application.add_handler(CommandHandler("status", system_status))
     application.add_handler(CommandHandler("apps", list_apps))
     application.add_handler(CommandHandler("restart_app", restart_app))
+    application.add_handler(CommandHandler("app", custom_app_control))
     application.add_handler(CommandHandler("run", run_command))
     application.add_handler(CommandHandler("temp", get_temperature))
     application.add_handler(CommandHandler("uptime", get_uptime))
