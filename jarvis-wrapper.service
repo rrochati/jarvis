@@ -1,0 +1,24 @@
+[Unit]
+Description=Jarvis Telegram Bot for Raspberry Pi
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rrocha
+Group=rrocha
+WorkingDirectory=/home/rrocha/jarvis
+ExecStart=/bin/bash -c 'source /home/rrocha/miniconda3/etc/profile.d/conda.sh && conda activate python311 && python jarvis.py start'
+Restart=always
+RestartSec=10
+KillMode=process
+TimeoutStopSec=30
+
+# Load environment variables from file
+EnvironmentFile=/home/rrocha/jarvis/.env
+
+# Minimal security settings for testing
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -30,7 +30,7 @@ MANAGED_APPS = {
 }
 
 # Safe commands for /run
-SAFE_COMMANDS = ['ls', 'ps', 'df', 'free', 'uptime', 'whoami', 'date', 'systemctl status']
+SAFE_COMMANDS = ['df', 'free', 'uptime', 'date', 'systemctl status']
 
 def is_authorized(user_id):
     """Check if user is authorized to use the bot"""
@@ -154,7 +154,6 @@ async def run_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command = " ".join(context.args)
     
     # Security: Only allow safe commands
-    #safe_commands = ['ls', 'ps', 'df', 'free', 'uptime', 'whoami', 'date']
     safe_commands = SAFE_COMMANDS
     if not any(command.startswith(cmd) for cmd in safe_commands):
         await update.message.reply_text("❌ Command not allowed for security reasons")
