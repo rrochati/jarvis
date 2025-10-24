@@ -24,8 +24,8 @@ logger.info(f"Authorized users: {AUTHORIZED_USERS}")
 
 # Application management
 MANAGED_APPS = {
-    'webserver': 'nginx',
-    'api': 'your-api-service',
+    'station': 'weather-station',
+    'jarvis': 'jarvis',
     'database': 'postgresql'
 }
 
