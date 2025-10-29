@@ -223,8 +223,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def custom_app_control(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Control your specific applications"""
+    # First check if we can reply
+    if not update or not update.effective_message:
+        logger.error("Update or message is None")
+        return
+
     if not context.args:
-        await update.message.reply_text("Usage: /app <start|stop|status> <app_name>")
+        await update.effective_message.reply_text("Usage: /app <start|stop|status> <app_name>")
         return
     
     action = context.args[0]
@@ -233,13 +238,13 @@ async def custom_app_control(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # Validate actions
     valid_actions = {'start', 'stop', 'status'}
     if action not in valid_actions:
-        await update.message.reply_text("❌ Invalid action. Use start, stop, or status.")
+        await update.effective_message.reply_text("❌ Invalid action. Use start, stop, or status.")
         return
     
     # Validate app names
     valid_apps = {'weather-station'}  # Add your allowed apps here
     if app_name not in valid_apps:
-        await update.message.reply_text("❌ Invalid application name")
+        await update.effective_message.reply_text("❌ Invalid application name")
         return
     
     try:
@@ -255,15 +260,29 @@ async def custom_app_control(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if len(output) > 4000:
             output = output[:4000] + "... (truncated)"
             
-        await update.message.reply_text(f"```\n{output}\n```", parse_mode='Markdown')
+        await update.effective_message.reply_text(f"```\n{output}\n```", parse_mode='Markdown')
     
     except subprocess.TimeoutExpired:
-        await update.message.reply_text("❌ Command timed out")
+        await update.effective_message.reply_text("❌ Command timed out")
     except subprocess.CalledProcessError as e:
-        await update.message.reply_text(f"❌ Command failed with exit code {e.returncode}")
+        await update.effective_message.reply_text(f"❌ Command failed with exit code {e.returncode}")
     except Exception as e:
-        await update.message.reply_text(f"❌ Error executing command: {str(e)}")
+        logger.error(f"Error in custom_app_control: {str(e)}", exc_info=True)
+        try:
+            await update.effective_message.reply_text(f"❌ Error executing command: {str(e)}")
+        except Exception as reply_error:
+            logger.error(f"Could not send error message: {str(reply_error)}", exc_info=True)
 
+def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle errors in the dispatcher"""
+    logger.error("Exception while handling an update:", exc_info=context.error)
+    
+    # Try to notify user
+    if update and hasattr(update, 'effective_message') and update.effective_message:
+        try:
+            update.effective_message.reply_text("❌ Sorry, something went wrong!")
+        except Exception as e:
+            logger.error(f"Could not send error message: {str(e)}", exc_info=True)
 
 def main():
     """Start the bot."""
@@ -284,6 +303,9 @@ def main():
     
     # Handle all non-command messages
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Add error handler
+    application.add_error_handler(error_handler)
 
     # Run the bot until the user presses Ctrl-C
     logger.info("Bot started. Listening for commands...")
