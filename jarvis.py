@@ -80,13 +80,13 @@ async def system_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             temp = "N/A"
         
         status_text = f"""
-📊 **System Status**
+    📊 **System Status**
 
-🖥️ CPU Usage: {cpu_percent}%
-🧠 Memory: {memory.percent}% ({memory.used // (1024**2)}MB / {memory.total // (1024**2)}MB)
-💾 Disk: {disk.percent}% ({disk.used // (1024**3)}GB / {disk.total // (1024**3)}GB)
-🌡️ Temperature: {temp}
-"""
+    🖥️ CPU Usage: {cpu_percent}%
+    🧠 Memory: {memory.percent}% ({memory.used // (1024**2)}MB / {memory.total // (1024**2)}MB)
+    💾 Disk: {disk.percent}% ({disk.used // (1024**3)}GB / {disk.total // (1024**3)}GB)
+    🌡️ Temperature: {temp}
+    """
         await update.message.reply_text(status_text)
         
     except Exception as e:
@@ -229,28 +229,41 @@ async def custom_app_control(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     action = context.args[0]
     app_name = context.args[1] if len(context.args) > 1 else None
-    action = context.args[2] if len(context.args) > 1 else None
     
-    # Add your app-specific logic here
-    if app_name == "weather-station":
-        try:
-            result = subprocess.run(['sudo systemctl %s weather-station', action], capture_output=True, text=True, timeout=10)
-            
-            output = result.stdout if result.stdout else result.stderr
-            if len(output) > 4000:  # Telegram message limit
-                output = output[:4000] + "... (truncated)"
-                
-            await update.message.reply_text(f"```\n{output}\n```", parse_mode='Markdown')
+    # Validate actions
+    valid_actions = {'start', 'stop', 'status'}
+    if action not in valid_actions:
+        await update.message.reply_text("❌ Invalid action. Use start, stop, or status.")
+        return
+    
+    # Validate app names
+    valid_apps = {'weather-station'}  # Add your allowed apps here
+    if app_name not in valid_apps:
+        await update.message.reply_text("❌ Invalid application name")
+        return
+    
+    try:
+        result = subprocess.run(
+            ['sudo', 'systemctl', action, app_name],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True  # Raise CalledProcessError if command fails
+        )
         
-        except subprocess.TimeoutExpired:
-            await update.message.reply_text("❌ Command timed out")
-        except Exception as e:
-            await update.message.reply_text(f"❌ Error executing command: {str(e)}")
-            pass
-    elif app_name == "sensor":
-        # Your sensor app control logic
-        pass
-````
+        output = result.stdout if result.stdout else result.stderr
+        if len(output) > 4000:
+            output = output[:4000] + "... (truncated)"
+            
+        await update.message.reply_text(f"```\n{output}\n```", parse_mode='Markdown')
+    
+    except subprocess.TimeoutExpired:
+        await update.message.reply_text("❌ Command timed out")
+    except subprocess.CalledProcessError as e:
+        await update.message.reply_text(f"❌ Command failed with exit code {e.returncode}")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error executing command: {str(e)}")
+
 
 def main():
     """Start the bot."""
