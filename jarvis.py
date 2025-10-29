@@ -24,8 +24,8 @@ logger.info(f"Authorized users: {AUTHORIZED_USERS}")
 
 # Application management
 MANAGED_APPS = {
-    'webserver': 'nginx',
-    'api': 'your-api-service',
+    'station': 'weather-station',
+    'jarvis': 'jarvis',
     'database': 'postgresql'
 }
 
@@ -80,13 +80,13 @@ async def system_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
             temp = "N/A"
         
         status_text = f"""
-📊 **System Status**
+    📊 **System Status**
 
-🖥️ CPU Usage: {cpu_percent}%
-🧠 Memory: {memory.percent}% ({memory.used // (1024**2)}MB / {memory.total // (1024**2)}MB)
-💾 Disk: {disk.percent}% ({disk.used // (1024**3)}GB / {disk.total // (1024**3)}GB)
-🌡️ Temperature: {temp}
-"""
+    🖥️ CPU Usage: {cpu_percent}%
+    🧠 Memory: {memory.percent}% ({memory.used // (1024**2)}MB / {memory.total // (1024**2)}MB)
+    💾 Disk: {disk.percent}% ({disk.used // (1024**3)}GB / {disk.total // (1024**3)}GB)
+    🌡️ Temperature: {temp}
+    """
         await update.message.reply_text(status_text)
         
     except Exception as e:
@@ -199,20 +199,19 @@ async def get_uptime(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show help message"""
     help_text = """
-🤖 **Raspberry Pi Bot Commands:**
+    🤖 **Raspberry Pi Bot Commands:**
 
-/start - Start the bot
-/status - Get system status (CPU, memory, disk, temp)
-/apps - List running applications
-/restart_app <name> - Restart a systemd service
-/run <command> - Execute safe system commands
-/temp - Get CPU temperature
-/uptime - Get system uptime
-/help - Show this help message
+    /start - Start the bot
+    /status - Get system status (CPU, memory, disk, temp)
+    /apps - List running applications
+    /restart_app <name> - Restart a systemd service
+    /run <command> - Execute safe system commands
+    /temp - Get CPU temperature
+    /uptime - Get system uptime
+    /help - Show this help message
 
-**Security:** Only authorized users can use this bot.
-**Safe commands:** ls, ps, df, free, uptime, whoami, date
-"""
+    **Security:** Only authorized users can use this bot.
+    """
     await update.message.reply_text(help_text)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -221,6 +220,69 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     await update.message.reply_text("Use /help to see available commands!")
+
+async def custom_app_control(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Control your specific applications"""
+    # First check if we can reply
+    if not update or not update.effective_message:
+        logger.error("Update or message is None")
+        return
+
+    if not context.args:
+        await update.effective_message.reply_text("Usage: /app <start|stop|status> <app_name>")
+        return
+    
+    action = context.args[0]
+    app_name = context.args[1] if len(context.args) > 1 else None
+    
+    # Validate actions
+    valid_actions = {'start', 'stop', 'status'}
+    if action not in valid_actions:
+        await update.effective_message.reply_text("❌ Invalid action. Use start, stop, or status.")
+        return
+    
+    # Validate app names
+    valid_apps = {'weather-station'}  # Add your allowed apps here
+    if app_name not in valid_apps:
+        await update.effective_message.reply_text("❌ Invalid application name")
+        return
+    
+    try:
+        result = subprocess.run(
+            ['sudo', 'systemctl', action, app_name],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True  # Raise CalledProcessError if command fails
+        )
+        
+        output = result.stdout if result.stdout else result.stderr
+        if len(output) > 4000:
+            output = output[:4000] + "... (truncated)"
+            
+        await update.effective_message.reply_text(f"```\n{output}\n```", parse_mode='Markdown')
+    
+    except subprocess.TimeoutExpired:
+        await update.effective_message.reply_text("❌ Command timed out")
+    except subprocess.CalledProcessError as e:
+        await update.effective_message.reply_text(f"❌ Command failed with exit code {e.returncode}")
+    except Exception as e:
+        logger.error(f"Error in custom_app_control: {str(e)}", exc_info=True)
+        try:
+            await update.effective_message.reply_text(f"❌ Error executing command: {str(e)}")
+        except Exception as reply_error:
+            logger.error(f"Could not send error message: {str(reply_error)}", exc_info=True)
+
+def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle errors in the dispatcher"""
+    logger.error("Exception while handling an update:", exc_info=context.error)
+    
+    # Try to notify user
+    if update and hasattr(update, 'effective_message') and update.effective_message:
+        try:
+            update.effective_message.reply_text("❌ Sorry, something went wrong!")
+        except Exception as e:
+            logger.error(f"Could not send error message: {str(e)}", exc_info=True)
 
 def main():
     """Start the bot."""
@@ -233,6 +295,7 @@ def main():
     application.add_handler(CommandHandler("status", system_status))
     application.add_handler(CommandHandler("apps", list_apps))
     application.add_handler(CommandHandler("restart_app", restart_app))
+    application.add_handler(CommandHandler("app", custom_app_control))
     application.add_handler(CommandHandler("run", run_command))
     application.add_handler(CommandHandler("temp", get_temperature))
     application.add_handler(CommandHandler("uptime", get_uptime))
@@ -240,6 +303,9 @@ def main():
     
     # Handle all non-command messages
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Add error handler
+    application.add_error_handler(error_handler)
 
     # Run the bot until the user presses Ctrl-C
     logger.info("Bot started. Listening for commands...")
