@@ -1,26 +1,28 @@
 import logging
 import subprocess
 import psutil
-import os
+import os, sys
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-LOG_FILE=os.getenv('LOG_FILE', 'jarvis.log')
+LOG_FILE=os.getenv('LOG_FILE', '/home/rrocha/jarvis/jarvis.log')
 
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.INFO,
+    handlers=[
+        logging.StreamHandler(sys.stdout),  # This ensures output goes to stdout
+        logging.FileHandler(LOG_FILE, mode='a') # Send logs to file
+    ]
 )
 logger = logging.getLogger(__name__)
 
 # Replace with your bot token from BotFather
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE')
-logger.info(f"token:{BOT_TOKEN}")
 
 # Replace with your Telegram user ID for security (optional)
 AUTHORIZED_USERS = [int(x) for x in os.getenv('AUTHORIZED_USERS', '').split(',') if x.strip()]
-logger.info(f"Authorized users: {AUTHORIZED_USERS}")
 
 # Application management
 MANAGED_APPS = {
