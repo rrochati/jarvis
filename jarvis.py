@@ -343,7 +343,7 @@ def main():
     """Start the bot."""
     logger.info("Starting Raspberry Pi Bot")
     logger.info(f"Current working directory: {os.getcwd()}")
-    logger.info(f"Environment variables:\n{pprint.pformat(dict(os.environ))}")
+    #logger.info(f"Environment variables:\n{pprint.pformat(dict(os.environ))}")
     # Create the Application
     application = Application.builder().token(BOT_TOKEN).build()
 
@@ -365,15 +365,16 @@ def main():
     # Add error handler
     application.add_error_handler(error_handler)
 
-    # Run the bot until the user presses Ctrl-C
-    logger.info("Bot started. Listening for commands...")
-    application.run_polling()
-    
     logger.info("Initializing database...")
     db = WeatherDatabase()
     # Print database stats
     stats = db.get_database_stats()
     logger.info("Database stats: %s", stats)
+    
+    # Run the bot until the user presses Ctrl-C
+    logger.info("Bot started. Listening for commands...")
+    application.run_polling()
+    
 
 if __name__ == '__main__':
     main()
