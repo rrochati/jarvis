@@ -2,6 +2,7 @@ import logging
 import subprocess
 import psutil
 import os, sys
+import pprint
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -249,6 +250,10 @@ async def custom_app_control(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.effective_message.reply_text("❌ Invalid application name")
         return
     
+    logger.info(f"custom_app_control: action={action}, app_name={app_name}")
+    logger.info(f"Effective user: {update.effective_user.id if update and hasattr(update, 'effective_user') else 'N/A'}")
+    logger.info(f"Environment variables:\n{pprint.pformat(dict(os.environ))}")
+    
     try:
         result = subprocess.run(
             ['sudo', 'systemctl', action, app_name],
@@ -289,6 +294,8 @@ def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
 def main():
     """Start the bot."""
     logger.info("Starting Raspberry Pi Bot")
+    logger.info(f"Current working directory: {os.getcwd()}")
+    logger.info(f"Environment variables:\n{pprint.pformat(dict(os.environ))}")
     # Create the Application
     application = Application.builder().token(BOT_TOKEN).build()
 
