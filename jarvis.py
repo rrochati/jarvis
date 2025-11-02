@@ -306,7 +306,6 @@ async def weather_station(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     action = context.args[0]
     logger.info(f"weather_station: action={action}")
-    #app_name = context.args[1] if len(context.args) > 1 else None
     
     # Validate actions
     valid_actions = {'last', 'last1h', 'last12h', 'last24h'}
@@ -314,7 +313,6 @@ async def weather_station(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("❌ Invalid action. Use last, last1h, last12h, last24h.")
         return
     try:
-
         db = WeatherDatabase()
         if action == 'last':
             stats = db.last()

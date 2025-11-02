@@ -44,11 +44,6 @@ Jarvis is a Python-based Telegram bot that can:
     ```
 
 5. **Set up as systemd service:**
-- Copy service file to systemd:
-    ```bash
-    sudo cp /home/rrocha/jarvis/jarvis-wrapper.service /etc/systemd/system/jarvis-bot.service
-    ```
-
 - Set up .env:
 Copy .env.example as .env and edit it for your values.
 
@@ -59,6 +54,11 @@ Copy .env.example as .env and edit it for your values.
 
     # Make sure it's not tracked by git
     echo ".env" >> /home/rrocha/jarvis/.gitignore
+    ```
+
+- Copy service file to systemd:
+    ```bash
+    sudo cp /home/rrocha/jarvis/jarvis-wrapper.service /etc/systemd/system/jarvis-bot.service
     ```
 
 - Enable and start the service:
