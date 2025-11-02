@@ -1,26 +1,30 @@
 import logging
 import subprocess
 import psutil
-import os
+import os, sys
+import pprint
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from modules.database import WeatherDatabase
 
-LOG_FILE=os.getenv('LOG_FILE', 'jarvis.log')
+LOG_FILE=os.getenv('LOG_FILE', '/home/rrocha/jarvis/jarvis.log')
 
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.INFO,
+    handlers=[
+        logging.StreamHandler(sys.stdout),  # This ensures output goes to stdout
+        logging.FileHandler(LOG_FILE, mode='a') # Send logs to file
+    ]
 )
 logger = logging.getLogger(__name__)
 
 # Replace with your bot token from BotFather
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE')
-logger.info(f"token:{BOT_TOKEN}")
 
 # Replace with your Telegram user ID for security (optional)
 AUTHORIZED_USERS = [int(x) for x in os.getenv('AUTHORIZED_USERS', '').split(',') if x.strip()]
-logger.info(f"Authorized users: {AUTHORIZED_USERS}")
 
 # Application management
 MANAGED_APPS = {
@@ -247,6 +251,10 @@ async def custom_app_control(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.effective_message.reply_text("❌ Invalid application name")
         return
     
+    logger.info(f"custom_app_control: action={action}, app_name={app_name}")
+    logger.info(f"Effective user: {update.effective_user.id if update and hasattr(update, 'effective_user') else 'N/A'}")
+    logger.info(f"Environment variables:\n{pprint.pformat(dict(os.environ))}")
+    
     try:
         result = subprocess.run(
             ['sudo', 'systemctl', action, app_name],
@@ -284,15 +292,60 @@ def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         except Exception as e:
             logger.error(f"Could not send error message: {str(e)}", exc_info=True)
 
+
+async def weather_station(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Control your specific applications"""
+    # First check if we can reply
+    if not update or not update.effective_message:
+        logger.error("Update or message is None")
+        return
+
+    if not context.args:
+        await update.effective_message.reply_text("Usage: /weather <last|last1h|last12h|last24h>")
+        return
+    
+    action = context.args[0]
+    logger.info(f"weather_station: action={action}")
+    
+    # Validate actions
+    valid_actions = {'last', 'last1h', 'last12h', 'last24h'}
+    if action not in valid_actions:
+        await update.effective_message.reply_text("❌ Invalid action. Use last, last1h, last12h, last24h.")
+        return
+    try:
+        db = WeatherDatabase()
+        if action == 'last':
+            stats = db.last()
+        elif action == 'last1h':
+            stats = db.last1h()
+        elif action == 'last12h':
+            stats = db.last12h()
+        elif action == 'last24h':
+            stats = db.last24h()
+        else:
+            logger.error(f"Unhandled action: {action}")
+            await update.effective_message.reply_text("❌ Unhandled action.")
+        await update.effective_message.reply_text(f"```\n{stats}\n```", parse_mode='Markdown')
+    
+    except Exception as e:
+        logger.error(f"Error in weather_station: {str(e)}", exc_info=True)
+        try:
+            await update.effective_message.reply_text(f"❌ Error executing command: {str(e)}")
+        except Exception as reply_error:
+            logger.error(f"Could not send error message: {str(reply_error)}", exc_info=True)
+
 def main():
     """Start the bot."""
     logger.info("Starting Raspberry Pi Bot")
+    logger.info(f"Current working directory: {os.getcwd()}")
+    #logger.info(f"Environment variables:\n{pprint.pformat(dict(os.environ))}")
     # Create the Application
     application = Application.builder().token(BOT_TOKEN).build()
 
     # Register handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("status", system_status))
+    application.add_handler(CommandHandler("weather", weather_station))
     application.add_handler(CommandHandler("apps", list_apps))
     application.add_handler(CommandHandler("restart_app", restart_app))
     application.add_handler(CommandHandler("app", custom_app_control))
@@ -307,9 +360,16 @@ def main():
     # Add error handler
     application.add_error_handler(error_handler)
 
+    logger.info("Initializing database...")
+    db = WeatherDatabase()
+    # Print database stats
+    stats = db.get_database_stats()
+    logger.info("Database stats: %s", stats)
+    
     # Run the bot until the user presses Ctrl-C
     logger.info("Bot started. Listening for commands...")
     application.run_polling()
+    
 
 if __name__ == '__main__':
     main()
