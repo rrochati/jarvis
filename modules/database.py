@@ -60,3 +60,101 @@ class WeatherDatabase:
         except sqlite3.Error as e:
             logger.error(f"Error getting database stats: {e}")
             return {}
+    
+    def get_last_reading(self) -> Optional[Dict[str, Any]]:
+        """Get the most recent weather reading."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT * FROM weather_readings 
+                    ORDER BY timestamp DESC 
+                    LIMIT 1
+                ''')
+                result = cursor.fetchone()
+                return dict(result) if result else None
+        except sqlite3.Error as e:
+            logger.error(f"Error getting last reading: {e}")
+            return None
+
+    def get_period_statistics(self, hours: int) -> Dict[str, Any]:
+        """Get statistics (max, min, avg) for sensor data over the specified period."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT 
+                        COUNT(*) as record_count,
+                        MIN(sensor_temperature) as temp_min,
+                        MAX(sensor_temperature) as temp_max,
+                        AVG(sensor_temperature) as temp_avg,
+                        MIN(sensor_humidity) as humidity_min,
+                        MAX(sensor_humidity) as humidity_max,
+                        AVG(sensor_humidity) as humidity_avg,
+                        MIN(sensor_pressure) as pressure_min,
+                        MAX(sensor_pressure) as pressure_max,
+                        AVG(sensor_pressure) as pressure_avg,
+                        MIN(sensor_altitude) as altitude_min,
+                        MAX(sensor_altitude) as altitude_max,
+                        AVG(sensor_altitude) as altitude_avg,
+                        MIN(timestamp) as period_start,
+                        MAX(timestamp) as period_end
+                    FROM weather_readings 
+                    WHERE datetime(timestamp) >= datetime('now', '-{} hours')
+                '''.format(hours))
+                
+                result = cursor.fetchone()
+                if result and result[0] > 0:  # Check if we have records
+                    return {
+                        'period_hours': hours,
+                        'record_count': result[0],
+                        'period_start': result[13],
+                        'period_end': result[14],
+                        'sensor_temperature': {
+                            'min': round(result[1], 2) if result[1] is not None else None,
+                            'max': round(result[2], 2) if result[2] is not None else None,
+                            'avg': round(result[3], 2) if result[3] is not None else None
+                        },
+                        'sensor_humidity': {
+                            'min': round(result[4], 2) if result[4] is not None else None,
+                            'max': round(result[5], 2) if result[5] is not None else None,
+                            'avg': round(result[6], 2) if result[6] is not None else None
+                        },
+                        'sensor_pressure': {
+                            'min': round(result[7], 2) if result[7] is not None else None,
+                            'max': round(result[8], 2) if result[8] is not None else None,
+                            'avg': round(result[9], 2) if result[9] is not None else None
+                        },
+                        'sensor_altitude': {
+                            'min': round(result[10], 2) if result[10] is not None else None,
+                            'max': round(result[11], 2) if result[11] is not None else None,
+                            'avg': round(result[12], 2) if result[12] is not None else None
+                        }
+                    }
+                else:
+                    return {
+                        'period_hours': hours,
+                        'record_count': 0,
+                        'message': f'No records found for the last {hours} hours'
+                    }
+                    
+        except sqlite3.Error as e:
+            logger.error(f"Error getting {hours}h statistics: {e}")
+            return {'error': str(e)}
+
+    def last1h(self) -> Dict[str, Any]:
+        """Get statistics for the last 1 hour."""
+        return self.get_period_statistics(1)
+
+    def last12h(self) -> Dict[str, Any]:
+        """Get statistics for the last 12 hours."""
+        return self.get_period_statistics(12)
+
+    def last24h(self) -> Dict[str, Any]:
+        """Get statistics for the last 24 hours."""
+        return self.get_period_statistics(24)
+
+    def last(self) -> Optional[Dict[str, Any]]:
+        """Alias for get_last_reading() - Get the most recent weather reading."""
+        return self.get_last_reading()

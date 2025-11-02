@@ -305,35 +305,30 @@ async def weather_station(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     action = context.args[0]
-    app_name = context.args[1] if len(context.args) > 1 else None
+    logger.info(f"weather_station: action={action}")
+    #app_name = context.args[1] if len(context.args) > 1 else None
     
     # Validate actions
     valid_actions = {'last', 'last1h', 'last12h', 'last24h'}
     if action not in valid_actions:
         await update.effective_message.reply_text("❌ Invalid action. Use last, last1h, last12h, last24h.")
         return
-    
     try:
-        result = subprocess.run(
-            ['sudo', 'systemctl', action, app_name],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=True  # Raise CalledProcessError if command fails
-        )
-        
-        output = result.stdout if result.stdout else result.stderr
-        if len(output) > 4000:
-            output = output[:4000] + "... (truncated)"
-            
-        await update.effective_message.reply_text(f"```\n{output}\n```", parse_mode='Markdown')
+        if action == 'last':
+            stats = db.last()
+        elif action == 'last1h':
+            stats = db.last1h()
+        elif action == 'last12h':
+            stats = db.last12h()
+        elif action == 'last24h':
+            stats = db.last24h()
+        else:
+            logger.error(f"Unhandled action: {action}")
+            await update.effective_message.reply_text("❌ Unhandled action.")
+        await update.effective_message.reply_text(f"```\n{stats}\n```", parse_mode='Markdown')
     
-    except subprocess.TimeoutExpired:
-        await update.effective_message.reply_text("❌ Command timed out")
-    except subprocess.CalledProcessError as e:
-        await update.effective_message.reply_text(f"❌ Command failed with exit code {e.returncode}")
     except Exception as e:
-        logger.error(f"Error in custom_app_control: {str(e)}", exc_info=True)
+        logger.error(f"Error in weather_station: {str(e)}", exc_info=True)
         try:
             await update.effective_message.reply_text(f"❌ Error executing command: {str(e)}")
         except Exception as reply_error:
