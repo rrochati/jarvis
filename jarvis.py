@@ -314,6 +314,8 @@ async def weather_station(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("❌ Invalid action. Use last, last1h, last12h, last24h.")
         return
     try:
+
+        db = WeatherDatabase()
         if action == 'last':
             stats = db.last()
         elif action == 'last1h':
