@@ -5,6 +5,7 @@ import os, sys
 import pprint
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from modules.database import WeatherDatabase
 
 LOG_FILE=os.getenv('LOG_FILE', '/home/rrocha/jarvis/jarvis.log')
 
@@ -291,6 +292,53 @@ def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         except Exception as e:
             logger.error(f"Could not send error message: {str(e)}", exc_info=True)
 
+
+async def weather_station(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Control your specific applications"""
+    # First check if we can reply
+    if not update or not update.effective_message:
+        logger.error("Update or message is None")
+        return
+
+    if not context.args:
+        await update.effective_message.reply_text("Usage: /weather <last|last1h|last12h|last24h>")
+        return
+    
+    action = context.args[0]
+    app_name = context.args[1] if len(context.args) > 1 else None
+    
+    # Validate actions
+    valid_actions = {'last', 'last1h', 'last12h', 'last24h'}
+    if action not in valid_actions:
+        await update.effective_message.reply_text("❌ Invalid action. Use last, last1h, last12h, last24h.")
+        return
+    
+    try:
+        result = subprocess.run(
+            ['sudo', 'systemctl', action, app_name],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True  # Raise CalledProcessError if command fails
+        )
+        
+        output = result.stdout if result.stdout else result.stderr
+        if len(output) > 4000:
+            output = output[:4000] + "... (truncated)"
+            
+        await update.effective_message.reply_text(f"```\n{output}\n```", parse_mode='Markdown')
+    
+    except subprocess.TimeoutExpired:
+        await update.effective_message.reply_text("❌ Command timed out")
+    except subprocess.CalledProcessError as e:
+        await update.effective_message.reply_text(f"❌ Command failed with exit code {e.returncode}")
+    except Exception as e:
+        logger.error(f"Error in custom_app_control: {str(e)}", exc_info=True)
+        try:
+            await update.effective_message.reply_text(f"❌ Error executing command: {str(e)}")
+        except Exception as reply_error:
+            logger.error(f"Could not send error message: {str(reply_error)}", exc_info=True)
+
 def main():
     """Start the bot."""
     logger.info("Starting Raspberry Pi Bot")
@@ -302,6 +350,7 @@ def main():
     # Register handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("status", system_status))
+    application.add_handler(CommandHandler("weather", weather_station))
     application.add_handler(CommandHandler("apps", list_apps))
     application.add_handler(CommandHandler("restart_app", restart_app))
     application.add_handler(CommandHandler("app", custom_app_control))
@@ -319,6 +368,12 @@ def main():
     # Run the bot until the user presses Ctrl-C
     logger.info("Bot started. Listening for commands...")
     application.run_polling()
+    
+    logger.info("Initializing database...")
+    db = WeatherDatabase()
+    # Print database stats
+    stats = db.get_database_stats()
+    logger.info("Database stats: %s", stats)
 
 if __name__ == '__main__':
     main()
