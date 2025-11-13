@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from modules.database import WeatherDatabase
 
-LOG_FILE=os.getenv('LOG_FILE', '/home/rrocha/jarvis/jarvis.log')
+LOG_FILE=os.getenv('LOG_FILE', '/home/rrocha/logs/jarvis.log')
 
 # Enable logging
 logging.basicConfig(
