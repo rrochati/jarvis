@@ -216,7 +216,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
       • last24h - 24 hour stats
       • last48h - 48 hour stats
     /gusts <period> - Get wind gust analysis:
-      • 1h, 6h, 12h, 24h
+      • 1h, 6h, 12h, 24h, 48h
     /apps - List running applications
     /restart_app <name> - Restart a systemd service
     /run <command> - Execute safe system commands
@@ -490,16 +490,16 @@ async def wind_gusts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if not context.args:
-        await update.effective_message.reply_text("Usage: /gusts <1h|6h|12h|24h>")
+        await update.effective_message.reply_text("Usage: /gusts <1h|6h|12h|24h|48h>")
         return
     
     action = context.args[0]
     logger.info(f"wind_gusts: action={action}")
     
     # Validate actions
-    valid_actions = {'1h', '6h', '12h', '24h'}
+    valid_actions = {'1h', '6h', '12h', '24h', '48h'}
     if action not in valid_actions:
-        await update.effective_message.reply_text("❌ Invalid period. Use 1h, 6h, 12h, or 24h.")
+        await update.effective_message.reply_text("❌ Invalid period. Use 1h, 6h, 12h, 24h, or 48h.")
         return
     
     try:
