@@ -50,10 +50,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🤖 Raspberry Pi Bot is online!
 
 Available commands:
+/weather - Get weather station data
 /status - System status
-/apps - List running applications
-/restart_app <name> - Restart an application
-/run <command> - Execute system command
 /temp - CPU temperature
 /uptime - System uptime
 /help - Show this help message
@@ -281,6 +279,89 @@ async def custom_app_control(update: Update, context: ContextTypes.DEFAULT_TYPE)
         except Exception as reply_error:
             logger.error(f"Could not send error message: {str(reply_error)}", exc_info=True)
 
+def format_weather_data(data, data_type="last"):
+    """Format weather data for better smartphone readability"""
+    if not data:
+        return "❌ No weather data available"
+    
+    if data_type == "last":
+        # Format single reading
+        formatted = "🌤️ **Latest Weather Reading**\n\n"
+        
+        if 'timestamp' in data:
+            formatted += f"🕐 **Time:** {data['timestamp']}\n\n"
+        
+        # Temperature and humidity
+        if 'sensor_temperature' in data and data['sensor_temperature'] is not None:
+            formatted += f"🌡️ **Temperature:** {data['sensor_temperature']:.1f}°C\n"
+        
+        if 'sensor_humidity' in data and data['sensor_humidity'] is not None:
+            formatted += f"💧 **Humidity:** {data['sensor_humidity']:.1f}%\n"
+        
+        # Pressure and altitude
+        if 'sensor_pressure' in data and data['sensor_pressure'] is not None:
+            formatted += f"🔽 **Pressure:** {data['sensor_pressure']:.1f} hPa\n"
+        
+        if 'sensor_altitude' in data and data['sensor_altitude'] is not None:
+            formatted += f"⛰️ **Altitude:** {data['sensor_altitude']:.1f} m\n"
+        
+        # Wind data if available
+        if 'wind_speed' in data and data['wind_speed'] is not None:
+            formatted += f"💨 **Wind Speed:** {data['wind_speed']:.1f} km/h\n"
+        
+        if 'wind_direction' in data and data['wind_direction'] is not None:
+            formatted += f"🧭 **Wind Direction:** {data['wind_direction']}°\n"
+    
+    else:
+        # Format statistics (1h, 12h, 24h)
+        period = data.get('period_hours', 'Unknown')
+        record_count = data.get('record_count', 0)
+        
+        if record_count == 0:
+            return f"❌ No data available for the last {period} hours"
+        
+        formatted = f"📊 **Weather Stats - Last {period}h**\n"
+        formatted += f"📈 *{record_count} readings*\n\n"
+        
+        # Temperature stats
+        temp_data = data.get('sensor_temperature', {})
+        if temp_data and any(temp_data.values()):
+            formatted += "🌡️ **Temperature:**\n"
+            if temp_data.get('min') is not None:
+                formatted += f"   ❄️ Min: {temp_data['min']:.1f}°C\n"
+            if temp_data.get('max') is not None:
+                formatted += f"   🔥 Max: {temp_data['max']:.1f}°C\n"
+            if temp_data.get('avg') is not None:
+                formatted += f"   📊 Avg: {temp_data['avg']:.1f}°C\n\n"
+        
+        # Humidity stats
+        humidity_data = data.get('sensor_humidity', {})
+        if humidity_data and any(humidity_data.values()):
+            formatted += "💧 **Humidity:**\n"
+            if humidity_data.get('min') is not None:
+                formatted += f"   📉 Min: {humidity_data['min']:.1f}%\n"
+            if humidity_data.get('max') is not None:
+                formatted += f"   📈 Max: {humidity_data['max']:.1f}%\n"
+            if humidity_data.get('avg') is not None:
+                formatted += f"   📊 Avg: {humidity_data['avg']:.1f}%\n\n"
+        
+        # Pressure stats
+        pressure_data = data.get('sensor_pressure', {})
+        if pressure_data and any(pressure_data.values()):
+            formatted += "🔽 **Pressure:**\n"
+            if pressure_data.get('min') is not None:
+                formatted += f"   📉 Min: {pressure_data['min']:.1f} hPa\n"
+            if pressure_data.get('max') is not None:
+                formatted += f"   📈 Max: {pressure_data['max']:.1f} hPa\n"
+            if pressure_data.get('avg') is not None:
+                formatted += f"   📊 Avg: {pressure_data['avg']:.1f} hPa\n"
+        
+        # Period info
+        if 'period_start' in data and 'period_end' in data:
+            formatted += f"\n🕐 **Period:** {data['period_start']} to {data['period_end']}"
+    
+    return formatted
+
 def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle errors in the dispatcher"""
     logger.error("Exception while handling an update:", exc_info=context.error)
@@ -292,9 +373,8 @@ def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         except Exception as e:
             logger.error(f"Could not send error message: {str(e)}", exc_info=True)
 
-
 async def weather_station(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Control your specific applications"""
+    """Control weather station"""
     # First check if we can reply
     if not update or not update.effective_message:
         logger.error("Update or message is None")
@@ -316,16 +396,22 @@ async def weather_station(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db = WeatherDatabase()
         if action == 'last':
             stats = db.last()
+            formatted_message = format_weather_data(stats, "last")
         elif action == 'last1h':
             stats = db.last1h()
+            formatted_message = format_weather_data(stats, "stats")
         elif action == 'last12h':
             stats = db.last12h()
+            formatted_message = format_weather_data(stats, "stats")
         elif action == 'last24h':
             stats = db.last24h()
+            formatted_message = format_weather_data(stats, "stats")
         else:
             logger.error(f"Unhandled action: {action}")
             await update.effective_message.reply_text("❌ Unhandled action.")
-        await update.effective_message.reply_text(f"```\n{stats}\n```", parse_mode='Markdown')
+            return
+        
+        await update.effective_message.reply_text(formatted_message, parse_mode='Markdown')
     
     except Exception as e:
         logger.error(f"Error in weather_station: {str(e)}", exc_info=True)
