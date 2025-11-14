@@ -306,11 +306,14 @@ def format_weather_data(data, data_type="last"):
             formatted += f"⛰️ **Altitude:** {data['sensor_altitude']:.1f} m\n"
         
         # Wind data if available
-        if 'wind_speed' in data and data['wind_speed'] is not None:
-            formatted += f"💨 **Wind Speed:** {data['wind_speed']:.1f} km/h\n"
+        if 'sensor_wind_speed' in data and data['sensor_wind_speed'] is not None:
+            formatted += f"💨 **Wind Speed:** {data['sensor_wind_speed']:.1f} km/h\n"
         
-        if 'wind_direction' in data and data['wind_direction'] is not None:
-            formatted += f"🧭 **Wind Direction:** {data['wind_direction']}°\n"
+        if 'sensor_wind_direction' in data and data['sensor_wind_direction'] is not None:
+            formatted += f"🧭 **Wind Direction:** {data['sensor_wind_direction']:.0f}°"
+            if 'sensor_wind_direction_name' in data and data['sensor_wind_direction_name']:
+                formatted += f" ({data['sensor_wind_direction_name']})"
+            formatted += "\n"
     
     else:
         # Format statistics (1h, 12h, 24h)
@@ -366,6 +369,10 @@ def format_weather_data(data, data_type="last"):
                 formatted += f"   🌪️ Max: {wind_speed_data['max']:.1f} km/h\n"
             if wind_speed_data.get('avg') is not None:
                 formatted += f"   📊 Avg: {wind_speed_data['avg']:.1f} km/h\n\n"
+        
+        # Wind direction (most frequent)
+        if 'prevailing_wind_direction' in data and data['prevailing_wind_direction']:
+            formatted += f"🧭 **Prevailing Wind:** {data['prevailing_wind_direction']}\n\n"
         
         # Period info
         if 'period_start' in data and 'period_end' in data:

@@ -98,6 +98,9 @@ class WeatherDatabase:
                         MIN(sensor_altitude) as altitude_min,
                         MAX(sensor_altitude) as altitude_max,
                         AVG(sensor_altitude) as altitude_avg,
+                        MIN(sensor_wind_speed) as wind_speed_min,
+                        MAX(sensor_wind_speed) as wind_speed_max,
+                        AVG(sensor_wind_speed) as wind_speed_avg,
                         MIN(timestamp) as period_start,
                         MAX(timestamp) as period_end
                     FROM weather_readings 
@@ -105,12 +108,28 @@ class WeatherDatabase:
                 '''.format(hours))
                 
                 result = cursor.fetchone()
+                
+                # Get most frequent wind direction name
+                cursor.execute('''
+                    SELECT sensor_wind_direction_name, COUNT(*) as frequency
+                    FROM weather_readings 
+                    WHERE datetime(timestamp) >= datetime('now', '-{} hours')
+                    AND sensor_wind_direction_name IS NOT NULL
+                    AND sensor_wind_direction_name != ''
+                    GROUP BY sensor_wind_direction_name
+                    ORDER BY frequency DESC
+                    LIMIT 1
+                '''.format(hours))
+                
+                wind_direction_result = cursor.fetchone()
+                prevailing_wind = wind_direction_result[0] if wind_direction_result else None
+                
                 if result and result[0] > 0:  # Check if we have records
                     return {
                         'period_hours': hours,
                         'record_count': result[0],
-                        'period_start': result[13],
-                        'period_end': result[14],
+                        'period_start': result[16],
+                        'period_end': result[17],
                         'sensor_temperature': {
                             'min': round(result[1], 2) if result[1] is not None else None,
                             'max': round(result[2], 2) if result[2] is not None else None,
@@ -130,7 +149,13 @@ class WeatherDatabase:
                             'min': round(result[10], 2) if result[10] is not None else None,
                             'max': round(result[11], 2) if result[11] is not None else None,
                             'avg': round(result[12], 2) if result[12] is not None else None
-                        }
+                        },
+                        'wind_speed': {
+                            'min': round(result[13], 2) if result[13] is not None else None,
+                            'max': round(result[14], 2) if result[14] is not None else None,
+                            'avg': round(result[15], 2) if result[15] is not None else None
+                        },
+                        'prevailing_wind_direction': prevailing_wind
                     }
                 else:
                     return {
