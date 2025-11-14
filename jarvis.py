@@ -205,6 +205,16 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     /start - Start the bot
     /status - Get system status (CPU, memory, disk, temp)
+    /weather <period> - Get weather data:
+      • last - Latest reading
+      • last15min - 15 minute stats
+      • last30min - 30 minute stats  
+      • last1h - 1 hour stats
+      • last2h - 2 hour stats
+      • last6h - 6 hour stats
+      • last12h - 12 hour stats
+      • last24h - 24 hour stats
+      • last48h - 48 hour stats
     /apps - List running applications
     /restart_app <name> - Restart a systemd service
     /run <command> - Execute safe system commands
@@ -407,31 +417,46 @@ async def weather_station(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if not context.args:
-        await update.effective_message.reply_text("Usage: /weather <last|last1h|last12h|last24h>")
+        await update.effective_message.reply_text("Usage: /weather <last|last15min|last30min|last1h|last2h|last6h|last12h|last24h|last48h>")
         return
     
     action = context.args[0]
     logger.info(f"weather_station: action={action}")
     
     # Validate actions
-    valid_actions = {'last', 'last1h', 'last12h', 'last24h'}
+    valid_actions = {'last', 'last15min', 'last30min', 'last1h', 'last2h', 'last6h', 'last12h', 'last24h', 'last48h'}
     if action not in valid_actions:
-        await update.effective_message.reply_text("❌ Invalid action. Use last, last1h, last12h, last24h.")
+        await update.effective_message.reply_text("❌ Invalid action. Use last, last15min, last30min, last1h, last2h, last6h, last12h, last24h, last48h.")
         return
     try:
         db = WeatherDatabase()
         if action == 'last':
             stats = db.last()
             formatted_message = format_weather_data(stats, "last")
+        elif action == 'last15min':
+            stats = db.last15min()
+            formatted_message = format_weather_data(stats, "stats")
+        elif action == 'last30min':
+            stats = db.last30min()
+            formatted_message = format_weather_data(stats, "stats")
         elif action == 'last1h':
             # Increase timeout for potentially long-running statistics queries
             stats = db.last1h()
+            formatted_message = format_weather_data(stats, "stats")
+        elif action == 'last2h':
+            stats = db.last2h()
+            formatted_message = format_weather_data(stats, "stats")
+        elif action == 'last6h':
+            stats = db.last6h()
             formatted_message = format_weather_data(stats, "stats")
         elif action == 'last12h':
             stats = db.last12h()
             formatted_message = format_weather_data(stats, "stats")
         elif action == 'last24h':
             stats = db.last24h()
+            formatted_message = format_weather_data(stats, "stats")
+        elif action == 'last48h':
+            stats = db.last48h()
             formatted_message = format_weather_data(stats, "stats")
         else:
             logger.error(f"Unhandled action: {action}")

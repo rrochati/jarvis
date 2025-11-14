@@ -172,6 +172,22 @@ class WeatherDatabase:
         """Get statistics for the last 1 hour."""
         return self.get_period_statistics(1)
 
+    def last15min(self) -> Dict[str, Any]:
+        """Get statistics for the last 15 minutes."""
+        return self.get_period_statistics(0.25)
+
+    def last30min(self) -> Dict[str, Any]:
+        """Get statistics for the last 30 minutes."""
+        return self.get_period_statistics(0.5)
+
+    def last2h(self) -> Dict[str, Any]:
+        """Get statistics for the last 2 hours."""
+        return self.get_period_statistics(2)
+
+    def last6h(self) -> Dict[str, Any]:
+        """Get statistics for the last 6 hours."""
+        return self.get_period_statistics(6)
+
     def last12h(self) -> Dict[str, Any]:
         """Get statistics for the last 12 hours."""
         return self.get_period_statistics(12)
@@ -179,6 +195,10 @@ class WeatherDatabase:
     def last24h(self) -> Dict[str, Any]:
         """Get statistics for the last 24 hours."""
         return self.get_period_statistics(24)
+
+    def last48h(self) -> Dict[str, Any]:
+        """Get statistics for the last 48 hours."""
+        return self.get_period_statistics(48)
 
     def last(self) -> Optional[Dict[str, Any]]:
         """Alias for get_last_reading() - Get the most recent weather reading."""
