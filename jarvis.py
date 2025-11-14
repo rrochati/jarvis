@@ -215,6 +215,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
       • last12h - 12 hour stats
       • last24h - 24 hour stats
       • last48h - 48 hour stats
+    /gusts <period> - Get wind gust analysis:
+      • 1h, 6h, 12h, 24h
     /apps - List running applications
     /restart_app <name> - Restart a systemd service
     /run <command> - Execute safe system commands
@@ -392,6 +394,13 @@ def format_weather_data(data, data_type="last"):
         if 'prevailing_wind_direction' in data and data['prevailing_wind_direction']:
             formatted += f"🧭 **Prevailing Wind:** {data['prevailing_wind_direction']}\n\n"
         
+        # Gust information if available
+        if 'peak_gust' in data and data['peak_gust']:
+            gust = data['peak_gust']
+            formatted += f"💨 **Peak Gust:** {gust['peak_gust_knots']:.1f} kn ({gust['peak_gust_kmh']:.1f} km/h)\n"
+            if gust.get('gust_factor'):
+                formatted += f"   📊 Gust Factor: {gust['gust_factor']}\n\n"
+        
         # Period info
         if 'period_start' in data and 'period_end' in data:
             formatted += f"🕐 **Period:** {data['period_start']} to {data['period_end']}"
@@ -474,6 +483,75 @@ async def weather_station(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as reply_error:
             logger.error(f"Could not send error message: {str(reply_error)}", exc_info=True)
 
+async def wind_gusts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Get wind gust information"""
+    if not update or not update.effective_message:
+        logger.error("Update or message is None")
+        return
+
+    if not context.args:
+        await update.effective_message.reply_text("Usage: /gusts <1h|6h|12h|24h>")
+        return
+    
+    action = context.args[0]
+    logger.info(f"wind_gusts: action={action}")
+    
+    # Validate actions
+    valid_actions = {'1h', '6h', '12h', '24h'}
+    if action not in valid_actions:
+        await update.effective_message.reply_text("❌ Invalid period. Use 1h, 6h, 12h, or 24h.")
+        return
+    
+    try:
+        # Parse time period
+        hours = float(action.rstrip('h'))
+        
+        db = WeatherDatabase()
+        gust_stats = db.get_gust_statistics(hours)
+        
+        # Format gust information
+        formatted = f"🌪️ **Wind Gusts - Last {action}**\n\n"
+        
+        if gust_stats.get('gust_count', 0) == 0:
+            formatted += gust_stats.get('message', 'No significant gusts detected')
+            if gust_stats.get('sustained_wind_knots'):
+                formatted += f"\n\n💨 **Sustained Wind:** {gust_stats['sustained_wind_knots']} kn ({gust_stats['sustained_wind_kmh']} km/h)"
+        else:
+            formatted += f"📈 **{gust_stats['gust_count']} gusts detected**\n\n"
+            
+            if gust_stats.get('peak_gust'):
+                peak = gust_stats['peak_gust']
+                formatted += f"🌪️ **Peak Gust:** {peak['peak_gust_knots']} kn ({peak['peak_gust_kmh']} km/h)\n"
+                formatted += f"🕐 **Time:** {peak['timestamp']}\n"
+                if peak.get('gust_factor'):
+                    formatted += f"📊 **Gust Factor:** {peak['gust_factor']}\n\n"
+            
+            if gust_stats.get('average_gust_speed_knots'):
+                formatted += f"📊 **Average Gust:** {gust_stats['average_gust_speed_knots']} kn ({gust_stats['average_gust_speed_kmh']} km/h)\n"
+            
+            if gust_stats.get('sustained_wind_knots'):
+                formatted += f"💨 **Sustained Wind:** {gust_stats['sustained_wind_knots']} kn ({gust_stats['sustained_wind_kmh']} km/h)\n"
+            
+            if gust_stats.get('average_gust_factor'):
+                formatted += f"📈 **Average Gust Factor:** {gust_stats['average_gust_factor']}\n\n"
+            
+            # Show recent gusts
+            recent_gusts = gust_stats.get('recent_gusts', [])
+            if recent_gusts:
+                formatted += "🕐 **Recent Gusts:**\n"
+                for gust in recent_gusts[-3:]:  # Show last 3 gusts
+                    time_str = gust['timestamp'][-8:-3] if len(gust['timestamp']) > 8 else gust['timestamp']
+                    formatted += f"   • {time_str}: {gust['gust_speed_knots']} kn ({gust['gust_speed_kmh']} km/h)\n"
+        
+        await update.effective_message.reply_text(formatted, parse_mode='Markdown')
+    
+    except Exception as e:
+        logger.error(f"Error in wind_gusts: {str(e)}", exc_info=True)
+        try:
+            await update.effective_message.reply_text(f"❌ Error getting gust data: {str(e)}")
+        except Exception as reply_error:
+            logger.error(f"Could not send error message: {str(reply_error)}", exc_info=True)
+
 def main():
     """Start the bot."""
     logger.info("Starting Raspberry Pi Bot")
@@ -486,6 +564,7 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("status", system_status))
     application.add_handler(CommandHandler("weather", weather_station))
+    application.add_handler(CommandHandler("gusts", wind_gusts))
     application.add_handler(CommandHandler("apps", list_apps))
     application.add_handler(CommandHandler("restart_app", restart_app))
     application.add_handler(CommandHandler("app", custom_app_control))
