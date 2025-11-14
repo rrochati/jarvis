@@ -307,7 +307,9 @@ def format_weather_data(data, data_type="last"):
         
         # Wind data if available
         if 'sensor_wind_speed' in data and data['sensor_wind_speed'] is not None:
-            formatted += f"💨 **Wind Speed:** {data['sensor_wind_speed']:.1f} km/h\n"
+            knots = data['sensor_wind_speed']
+            kmh = knots * 1.852
+            formatted += f"💨 **Wind Speed:** {knots:.1f} kn ({kmh:.1f} km/h)\n"
         
         if 'sensor_wind_direction' in data and data['sensor_wind_direction'] is not None:
             formatted += f"🧭 **Wind Direction:** {data['sensor_wind_direction']:.0f}°"
@@ -364,11 +366,17 @@ def format_weather_data(data, data_type="last"):
         if wind_speed_data and any(wind_speed_data.values()):
             formatted += "💨 **Wind Speed:**\n"
             if wind_speed_data.get('min') is not None:
-                formatted += f"   🍃 Min: {wind_speed_data['min']:.1f} km/h\n"
+                min_knots = wind_speed_data['min']
+                min_kmh = min_knots * 1.852
+                formatted += f"   🍃 Min: {min_knots:.1f} kn ({min_kmh:.1f} km/h)\n"
             if wind_speed_data.get('max') is not None:
-                formatted += f"   🌪️ Max: {wind_speed_data['max']:.1f} km/h\n"
+                max_knots = wind_speed_data['max']
+                max_kmh = max_knots * 1.852
+                formatted += f"   🌪️ Max: {max_knots:.1f} kn ({max_kmh:.1f} km/h)\n"
             if wind_speed_data.get('avg') is not None:
-                formatted += f"   📊 Avg: {wind_speed_data['avg']:.1f} km/h\n\n"
+                avg_knots = wind_speed_data['avg']
+                avg_kmh = avg_knots * 1.852
+                formatted += f"   📊 Avg: {avg_knots:.1f} kn ({avg_kmh:.1f} km/h)\n\n"
         
         # Wind direction (most frequent)
         if 'prevailing_wind_direction' in data and data['prevailing_wind_direction']:
