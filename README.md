@@ -67,33 +67,33 @@ Copy .env.example as .env and edit it for your values.
     sudo systemctl daemon-reload
 
     # Enable service to start at boot
-    sudo systemctl enable jarvis-bot.service
+    sudo systemctl enable jarvis-bot
 
     # Start the service
-    sudo systemctl start jarvis-bot.service
+    sudo systemctl start jarvis-bot
     ```
 
 - Service Management Commands
 Once set up, you can control your service with:
     ```bash
     # Start the service
-    sudo systemctl start jarvis-bot.service
+    sudo systemctl start jarvis-bot
 
     # Stop the service
-    sudo systemctl stop jarvis-bot.service
+    sudo systemctl stop jarvis-bot
 
     # Restart the service
-    sudo systemctl restart jarvis-bot.service
+    sudo systemctl restart jarvis-bot
 
     # Reload configuration (if the service supports it)
-    sudo systemctl reload jarvis-bot.service
+    sudo systemctl reload jarvis-bot
 
     # Check status
-    sudo systemctl status jarvis-bot.service
+    sudo systemctl status jarvis-bot
 
     # View logs
-    sudo journalctl -u jarvis-bot.service -f
+    sudo journalctl -u jarvis-bot -f
 
     # View recent logs
-    sudo journalctl -u jarvis-bot.service --since "1 hour ago"
+    sudo journalctl -u jarvis-bot --since "1 hour ago"
     ```

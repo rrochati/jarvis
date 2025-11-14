@@ -354,11 +354,22 @@ def format_weather_data(data, data_type="last"):
             if pressure_data.get('max') is not None:
                 formatted += f"   📈 Max: {pressure_data['max']:.1f} hPa\n"
             if pressure_data.get('avg') is not None:
-                formatted += f"   📊 Avg: {pressure_data['avg']:.1f} hPa\n"
+                formatted += f"   📊 Avg: {pressure_data['avg']:.1f} hPa\n\n"
+        
+        # Wind speed stats
+        wind_speed_data = data.get('wind_speed', {})
+        if wind_speed_data and any(wind_speed_data.values()):
+            formatted += "💨 **Wind Speed:**\n"
+            if wind_speed_data.get('min') is not None:
+                formatted += f"   🍃 Min: {wind_speed_data['min']:.1f} km/h\n"
+            if wind_speed_data.get('max') is not None:
+                formatted += f"   🌪️ Max: {wind_speed_data['max']:.1f} km/h\n"
+            if wind_speed_data.get('avg') is not None:
+                formatted += f"   📊 Avg: {wind_speed_data['avg']:.1f} km/h\n\n"
         
         # Period info
         if 'period_start' in data and 'period_end' in data:
-            formatted += f"\n🕐 **Period:** {data['period_start']} to {data['period_end']}"
+            formatted += f"🕐 **Period:** {data['period_start']} to {data['period_end']}"
     
     return formatted
 
