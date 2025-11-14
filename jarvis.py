@@ -424,6 +424,7 @@ async def weather_station(update: Update, context: ContextTypes.DEFAULT_TYPE):
             stats = db.last()
             formatted_message = format_weather_data(stats, "last")
         elif action == 'last1h':
+            # Increase timeout for potentially long-running statistics queries
             stats = db.last1h()
             formatted_message = format_weather_data(stats, "stats")
         elif action == 'last12h':
@@ -437,6 +438,8 @@ async def weather_station(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.effective_message.reply_text("❌ Unhandled action.")
             return
         
+        # Send typing indicator for long operations
+        await update.effective_message.reply_chat_action('typing')
         await update.effective_message.reply_text(formatted_message, parse_mode='Markdown')
     
     except Exception as e:

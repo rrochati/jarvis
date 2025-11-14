@@ -81,7 +81,7 @@ class WeatherDatabase:
     def get_period_statistics(self, hours: int) -> Dict[str, Any]:
         """Get statistics (max, min, avg) for sensor data over the specified period."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite3.connect(self.db_path, timeout=60.0) as conn:  # Increased timeout to 60 seconds
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT 
