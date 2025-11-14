@@ -505,9 +505,25 @@ async def wind_gusts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Parse time period
         hours = float(action.rstrip('h'))
+        logger.info(f"Analyzing gusts for {hours} hours")
         
         db = WeatherDatabase()
+        
+        # Check if gust detector is available
+        if not hasattr(db, 'gust_detector') or db.gust_detector is None:
+            await update.effective_message.reply_text("❌ Gust detection module not available")
+            return
+        
+        # Send typing indicator
+        await update.effective_message.reply_chat_action('typing')
+        
         gust_stats = db.get_gust_statistics(hours)
+        logger.info(f"Gust stats: {gust_stats}")
+        
+        # Check for errors
+        if 'error' in gust_stats:
+            await update.effective_message.reply_text(f"❌ Error: {gust_stats['error']}")
+            return
         
         # Format gust information
         formatted = f"🌪️ **Wind Gusts - Last {action}**\n\n"
@@ -552,6 +568,53 @@ async def wind_gusts(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as reply_error:
             logger.error(f"Could not send error message: {str(reply_error)}", exc_info=True)
 
+async def debug_gusts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Debug gust detection - temporary command"""
+    if not update or not update.effective_message:
+        return
+    
+    try:
+        db = WeatherDatabase()
+        
+        # Check basic wind data availability
+        last_reading = db.get_last_reading()
+        wind_speed = last_reading.get('sensor_wind_speed') if last_reading else None
+        
+        # Get some wind readings
+        with db.gust_detector.db_path if db.gust_detector else db.db_path as path:
+            import sqlite3
+            with sqlite3.connect(path, timeout=30.0) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT timestamp, sensor_wind_speed
+                    FROM weather_readings 
+                    WHERE datetime(timestamp) >= datetime('now', '-1 hours')
+                    AND sensor_wind_speed IS NOT NULL
+                    ORDER BY timestamp DESC
+                    LIMIT 10
+                ''')
+                readings = cursor.fetchall()
+        
+        debug_info = f"🔍 **Gust Debug Info:**\n\n"
+        debug_info += f"• Last wind speed: {wind_speed} kn\n"
+        debug_info += f"• Recent readings count: {len(readings)}\n"
+        
+        if readings:
+            debug_info += f"• Recent wind speeds:\n"
+            for timestamp, speed in readings[:5]:
+                debug_info += f"  {timestamp[-8:]}: {speed:.1f} kn\n"
+        
+        # Test sustained wind calculation
+        if db.gust_detector:
+            sustained = db.gust_detector.calculate_sustained_wind(1.0)
+            debug_info += f"• Sustained wind (1h): {sustained}\n"
+        
+        await update.effective_message.reply_text(debug_info)
+        
+    except Exception as e:
+        logger.error(f"Debug error: {e}", exc_info=True)
+        await update.effective_message.reply_text(f"Debug error: {str(e)}")
+
 def main():
     """Start the bot."""
     logger.info("Starting Raspberry Pi Bot")
@@ -565,6 +628,7 @@ def main():
     application.add_handler(CommandHandler("status", system_status))
     application.add_handler(CommandHandler("weather", weather_station))
     application.add_handler(CommandHandler("gusts", wind_gusts))
+    application.add_handler(CommandHandler("debug_gusts", debug_gusts))
     application.add_handler(CommandHandler("apps", list_apps))
     application.add_handler(CommandHandler("restart_app", restart_app))
     application.add_handler(CommandHandler("app", custom_app_control))

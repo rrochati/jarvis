@@ -4,16 +4,27 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 import os
 import sys
-from .gust_detector import GustDetector
 
 logger = logging.getLogger(__name__)
+
+# Import GustDetector with error handling
+try:
+    from .gust_detector import GustDetector
+    GUST_DETECTOR_AVAILABLE = True
+except ImportError as e:
+    logger.error(f"Could not import GustDetector: {e}")
+    GUST_DETECTOR_AVAILABLE = False
 
 DB_FILE = LOG_FILE = os.getenv("DB_FILE", "/home/rrocha/data/weather_data.db")
 
 class WeatherDatabase:
     def __init__(self, db_path: str = DB_FILE):
         self.db_path = db_path
-        self.gust_detector = GustDetector(db_path)
+        if GUST_DETECTOR_AVAILABLE:
+            self.gust_detector = GustDetector(db_path)
+        else:
+            self.gust_detector = None
+            logger.warning("GustDetector not available")
     
     def get_recent_readings(self, hours: int = 24) -> List[Dict[str, Any]]:
         """Get recent weather readings from the last N hours."""
@@ -208,12 +219,18 @@ class WeatherDatabase:
 
     def get_gust_statistics(self, hours: float = 24.0) -> Dict[str, Any]:
         """Get wind gust statistics for the specified period."""
+        if not self.gust_detector:
+            return {'error': 'Gust detector not available'}
         return self.gust_detector.get_gust_statistics(hours)
     
     def detect_recent_gusts(self, hours: float = 1.0) -> List[Dict[str, Any]]:
         """Detect recent wind gusts."""
+        if not self.gust_detector:
+            return []
         return self.gust_detector.detect_recent_gusts(hours)
     
     def get_peak_gust(self, hours: float = 24.0) -> Optional[Dict[str, Any]]:
         """Get peak gust in the specified period."""
+        if not self.gust_detector:
+            return None
         return self.gust_detector.get_peak_gust(hours)
