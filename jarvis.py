@@ -328,6 +328,14 @@ def format_weather_data(data, data_type="last"):
             if 'sensor_wind_direction_name' in data and data['sensor_wind_direction_name']:
                 formatted += f" ({data['sensor_wind_direction_name']})"
             formatted += "\n"
+        
+        # Rain data
+        if 'sensor_rain_interval' in data and data['sensor_rain_interval'] is not None:
+            rain_mm = data['sensor_rain_interval']
+            if rain_mm > 0:
+                formatted += f"🌧️ **Rain (last interval):** {rain_mm:.2f} mm\n"
+            else:
+                formatted += f"☀️ **Rain:** None\n"
     
     else:
         # Format statistics (1h, 12h, 24h)
@@ -393,6 +401,14 @@ def format_weather_data(data, data_type="last"):
         # Wind direction (most frequent)
         if 'prevailing_wind_direction' in data and data['prevailing_wind_direction']:
             formatted += f"🧭 **Prevailing Wind:** {data['prevailing_wind_direction']}\n\n"
+        
+        # Rain total for the period
+        if 'rain_total_mm' in data:
+            rain_total = data['rain_total_mm']
+            if rain_total > 0:
+                formatted += f"🌧️ **Total Rainfall:** {rain_total:.2f} mm\n\n"
+            else:
+                formatted += f"☀️ **Rainfall:** None\n\n"
         
         # Gust information if available
         if 'peak_gust' in data and data['peak_gust']:
