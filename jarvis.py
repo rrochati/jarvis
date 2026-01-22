@@ -50,10 +50,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🤖 Raspberry Pi Bot is online!
 
 Available commands:
+/weather - Get weather station data
 /status - System status
-/apps - List running applications
-/restart_app <name> - Restart an application
-/run <command> - Execute system command
 /temp - CPU temperature
 /uptime - System uptime
 /help - Show this help message
@@ -207,6 +205,18 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     /start - Start the bot
     /status - Get system status (CPU, memory, disk, temp)
+    /weather <period> - Get weather data:
+      • last - Latest reading
+      • last15min - 15 minute stats
+      • last30min - 30 minute stats  
+      • last1h - 1 hour stats
+      • last2h - 2 hour stats
+      • last6h - 6 hour stats
+      • last12h - 12 hour stats
+      • last24h - 24 hour stats
+      • last48h - 48 hour stats
+    /gusts <period> - Get wind gust analysis:
+      • 1h, 6h, 12h, 24h, 48h
     /apps - List running applications
     /restart_app <name> - Restart a systemd service
     /run <command> - Execute safe system commands
@@ -281,6 +291,122 @@ async def custom_app_control(update: Update, context: ContextTypes.DEFAULT_TYPE)
         except Exception as reply_error:
             logger.error(f"Could not send error message: {str(reply_error)}", exc_info=True)
 
+def format_weather_data(data, data_type="last"):
+    """Format weather data for better smartphone readability"""
+    if not data:
+        return "❌ No weather data available"
+    
+    if data_type == "last":
+        # Format single reading
+        formatted = "🌤️ **Latest Weather Reading**\n\n"
+        
+        if 'timestamp' in data:
+            formatted += f"🕐 **Time:** {data['timestamp']}\n\n"
+        
+        # Temperature and humidity
+        if 'sensor_temperature' in data and data['sensor_temperature'] is not None:
+            formatted += f"🌡️ **Temperature:** {data['sensor_temperature']:.1f}°C\n"
+        
+        if 'sensor_humidity' in data and data['sensor_humidity'] is not None:
+            formatted += f"💧 **Humidity:** {data['sensor_humidity']:.1f}%\n"
+        
+        # Pressure and altitude
+        if 'sensor_pressure' in data and data['sensor_pressure'] is not None:
+            formatted += f"🔽 **Pressure:** {data['sensor_pressure']:.1f} hPa\n"
+        
+        if 'sensor_altitude' in data and data['sensor_altitude'] is not None:
+            formatted += f"⛰️ **Altitude:** {data['sensor_altitude']:.1f} m\n"
+        
+        # Wind data if available
+        if 'sensor_wind_speed' in data and data['sensor_wind_speed'] is not None:
+            knots = data['sensor_wind_speed']
+            kmh = knots * 1.852
+            formatted += f"💨 **Wind Speed:** {knots:.1f} kn ({kmh:.1f} km/h)\n"
+        
+        if 'sensor_wind_direction' in data and data['sensor_wind_direction'] is not None:
+            formatted += f"🧭 **Wind Direction:** {data['sensor_wind_direction']:.0f}°"
+            if 'sensor_wind_direction_name' in data and data['sensor_wind_direction_name']:
+                formatted += f" ({data['sensor_wind_direction_name']})"
+            formatted += "\n"
+    
+    else:
+        # Format statistics (1h, 12h, 24h)
+        period = data.get('period_hours', 'Unknown')
+        record_count = data.get('record_count', 0)
+        
+        if record_count == 0:
+            return f"❌ No data available for the last {period} hours"
+        
+        formatted = f"📊 **Weather Stats - Last {period}h**\n"
+        formatted += f"📈 *{record_count} readings*\n\n"
+        
+        # Temperature stats
+        temp_data = data.get('sensor_temperature', {})
+        if temp_data and any(temp_data.values()):
+            formatted += "🌡️ **Temperature:**\n"
+            if temp_data.get('min') is not None:
+                formatted += f"   ❄️ Min: {temp_data['min']:.1f}°C\n"
+            if temp_data.get('max') is not None:
+                formatted += f"   🔥 Max: {temp_data['max']:.1f}°C\n"
+            if temp_data.get('avg') is not None:
+                formatted += f"   📊 Avg: {temp_data['avg']:.1f}°C\n\n"
+        
+        # Humidity stats
+        humidity_data = data.get('sensor_humidity', {})
+        if humidity_data and any(humidity_data.values()):
+            formatted += "💧 **Humidity:**\n"
+            if humidity_data.get('min') is not None:
+                formatted += f"   📉 Min: {humidity_data['min']:.1f}%\n"
+            if humidity_data.get('max') is not None:
+                formatted += f"   📈 Max: {humidity_data['max']:.1f}%\n"
+            if humidity_data.get('avg') is not None:
+                formatted += f"   📊 Avg: {humidity_data['avg']:.1f}%\n\n"
+        
+        # Pressure stats
+        pressure_data = data.get('sensor_pressure', {})
+        if pressure_data and any(pressure_data.values()):
+            formatted += "🔽 **Pressure:**\n"
+            if pressure_data.get('min') is not None:
+                formatted += f"   📉 Min: {pressure_data['min']:.1f} hPa\n"
+            if pressure_data.get('max') is not None:
+                formatted += f"   📈 Max: {pressure_data['max']:.1f} hPa\n"
+            if pressure_data.get('avg') is not None:
+                formatted += f"   📊 Avg: {pressure_data['avg']:.1f} hPa\n\n"
+        
+        # Wind speed stats
+        wind_speed_data = data.get('wind_speed', {})
+        if wind_speed_data and any(wind_speed_data.values()):
+            formatted += "💨 **Wind Speed:**\n"
+            if wind_speed_data.get('min') is not None:
+                min_knots = wind_speed_data['min']
+                min_kmh = min_knots * 1.852
+                formatted += f"   🍃 Min: {min_knots:.1f} kn ({min_kmh:.1f} km/h)\n"
+            if wind_speed_data.get('max') is not None:
+                max_knots = wind_speed_data['max']
+                max_kmh = max_knots * 1.852
+                formatted += f"   🌪️ Max: {max_knots:.1f} kn ({max_kmh:.1f} km/h)\n"
+            if wind_speed_data.get('avg') is not None:
+                avg_knots = wind_speed_data['avg']
+                avg_kmh = avg_knots * 1.852
+                formatted += f"   📊 Avg: {avg_knots:.1f} kn ({avg_kmh:.1f} km/h)\n\n"
+        
+        # Wind direction (most frequent)
+        if 'prevailing_wind_direction' in data and data['prevailing_wind_direction']:
+            formatted += f"🧭 **Prevailing Wind:** {data['prevailing_wind_direction']}\n\n"
+        
+        # Gust information if available
+        if 'peak_gust' in data and data['peak_gust']:
+            gust = data['peak_gust']
+            formatted += f"💨 **Peak Gust:** {gust['peak_gust_knots']:.1f} kn ({gust['peak_gust_kmh']:.1f} km/h)\n"
+            if gust.get('gust_factor'):
+                formatted += f"   📊 Gust Factor: {gust['gust_factor']}\n\n"
+        
+        # Period info
+        if 'period_start' in data and 'period_end' in data:
+            formatted += f"🕐 **Period:** {data['period_start']} to {data['period_end']}"
+    
+    return formatted
+
 def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle errors in the dispatcher"""
     logger.error("Exception while handling an update:", exc_info=context.error)
@@ -292,40 +418,63 @@ def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         except Exception as e:
             logger.error(f"Could not send error message: {str(e)}", exc_info=True)
 
-
 async def weather_station(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Control your specific applications"""
+    """Control weather station"""
     # First check if we can reply
     if not update or not update.effective_message:
         logger.error("Update or message is None")
         return
 
     if not context.args:
-        await update.effective_message.reply_text("Usage: /weather <last|last1h|last12h|last24h>")
+        await update.effective_message.reply_text("Usage: /weather <last|last15min|last30min|last1h|last2h|last6h|last12h|last24h|last48h>")
         return
     
     action = context.args[0]
     logger.info(f"weather_station: action={action}")
     
     # Validate actions
-    valid_actions = {'last', 'last1h', 'last12h', 'last24h'}
+    valid_actions = {'last', 'last15min', 'last30min', 'last1h', 'last2h', 'last6h', 'last12h', 'last24h', 'last48h'}
     if action not in valid_actions:
-        await update.effective_message.reply_text("❌ Invalid action. Use last, last1h, last12h, last24h.")
+        await update.effective_message.reply_text("❌ Invalid action. Use last, last15min, last30min, last1h, last2h, last6h, last12h, last24h, last48h.")
         return
     try:
         db = WeatherDatabase()
         if action == 'last':
             stats = db.last()
+            formatted_message = format_weather_data(stats, "last")
+        elif action == 'last15min':
+            stats = db.last15min()
+            formatted_message = format_weather_data(stats, "stats")
+        elif action == 'last30min':
+            stats = db.last30min()
+            formatted_message = format_weather_data(stats, "stats")
         elif action == 'last1h':
+            # Increase timeout for potentially long-running statistics queries
             stats = db.last1h()
+            formatted_message = format_weather_data(stats, "stats")
+        elif action == 'last2h':
+            stats = db.last2h()
+            formatted_message = format_weather_data(stats, "stats")
+        elif action == 'last6h':
+            stats = db.last6h()
+            formatted_message = format_weather_data(stats, "stats")
         elif action == 'last12h':
             stats = db.last12h()
+            formatted_message = format_weather_data(stats, "stats")
         elif action == 'last24h':
             stats = db.last24h()
+            formatted_message = format_weather_data(stats, "stats")
+        elif action == 'last48h':
+            stats = db.last48h()
+            formatted_message = format_weather_data(stats, "stats")
         else:
             logger.error(f"Unhandled action: {action}")
             await update.effective_message.reply_text("❌ Unhandled action.")
-        await update.effective_message.reply_text(f"```\n{stats}\n```", parse_mode='Markdown')
+            return
+        
+        # Send typing indicator for long operations
+        await update.effective_message.reply_chat_action('typing')
+        await update.effective_message.reply_text(formatted_message, parse_mode='Markdown')
     
     except Exception as e:
         logger.error(f"Error in weather_station: {str(e)}", exc_info=True)
@@ -333,6 +482,138 @@ async def weather_station(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.effective_message.reply_text(f"❌ Error executing command: {str(e)}")
         except Exception as reply_error:
             logger.error(f"Could not send error message: {str(reply_error)}", exc_info=True)
+
+async def wind_gusts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Get wind gust information"""
+    if not update or not update.effective_message:
+        logger.error("Update or message is None")
+        return
+
+    if not context.args:
+        await update.effective_message.reply_text("Usage: /gusts <1h|6h|12h|24h|48h>")
+        return
+    
+    action = context.args[0]
+    logger.info(f"wind_gusts: action={action}")
+    
+    # Validate actions
+    valid_actions = {'1h', '6h', '12h', '24h', '48h'}
+    if action not in valid_actions:
+        await update.effective_message.reply_text("❌ Invalid period. Use 1h, 6h, 12h, 24h, or 48h.")
+        return
+    
+    try:
+        # Parse time period
+        hours = float(action.rstrip('h'))
+        logger.info(f"Analyzing gusts for {hours} hours")
+        
+        db = WeatherDatabase()
+        
+        # Check if gust detector is available
+        if not hasattr(db, 'gust_detector') or db.gust_detector is None:
+            await update.effective_message.reply_text("❌ Gust detection module not available")
+            return
+        
+        # Send typing indicator
+        await update.effective_message.reply_chat_action('typing')
+        
+        gust_stats = db.get_gust_statistics(hours)
+        logger.info(f"Gust stats: {gust_stats}")
+        
+        # Check for errors
+        if 'error' in gust_stats:
+            await update.effective_message.reply_text(f"❌ Error: {gust_stats['error']}")
+            return
+        
+        # Format gust information
+        formatted = f"🌪️ **Wind Gusts - Last {action}**\n\n"
+        
+        if gust_stats.get('gust_count', 0) == 0:
+            formatted += gust_stats.get('message', 'No significant gusts detected')
+            if gust_stats.get('sustained_wind_knots'):
+                formatted += f"\n\n💨 **Sustained Wind:** {gust_stats['sustained_wind_knots']} kn ({gust_stats['sustained_wind_kmh']} km/h)"
+        else:
+            formatted += f"📈 **{gust_stats['gust_count']} gusts detected**\n\n"
+            
+            if gust_stats.get('peak_gust'):
+                peak = gust_stats['peak_gust']
+                formatted += f"🌪️ **Peak Gust:** {peak['peak_gust_knots']} kn ({peak['peak_gust_kmh']} km/h)\n"
+                formatted += f"🕐 **Time:** {peak['timestamp']}\n"
+                if peak.get('gust_factor'):
+                    formatted += f"📊 **Gust Factor:** {peak['gust_factor']}\n\n"
+            
+            if gust_stats.get('average_gust_speed_knots'):
+                formatted += f"📊 **Average Gust:** {gust_stats['average_gust_speed_knots']} kn ({gust_stats['average_gust_speed_kmh']} km/h)\n"
+            
+            if gust_stats.get('sustained_wind_knots'):
+                formatted += f"💨 **Sustained Wind:** {gust_stats['sustained_wind_knots']} kn ({gust_stats['sustained_wind_kmh']} km/h)\n"
+            
+            if gust_stats.get('average_gust_factor'):
+                formatted += f"📈 **Average Gust Factor:** {gust_stats['average_gust_factor']}\n\n"
+            
+            # Show recent gusts
+            recent_gusts = gust_stats.get('recent_gusts', [])
+            if recent_gusts:
+                formatted += "🕐 **Recent Gusts:**\n"
+                for gust in recent_gusts[-3:]:  # Show last 3 gusts
+                    time_str = gust['timestamp'][-8:-3] if len(gust['timestamp']) > 8 else gust['timestamp']
+                    formatted += f"   • {time_str}: {gust['gust_speed_knots']} kn ({gust['gust_speed_kmh']} km/h)\n"
+        
+        await update.effective_message.reply_text(formatted, parse_mode='Markdown')
+    
+    except Exception as e:
+        logger.error(f"Error in wind_gusts: {str(e)}", exc_info=True)
+        try:
+            await update.effective_message.reply_text(f"❌ Error getting gust data: {str(e)}")
+        except Exception as reply_error:
+            logger.error(f"Could not send error message: {str(reply_error)}", exc_info=True)
+
+async def debug_gusts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Debug gust detection - temporary command"""
+    if not update or not update.effective_message:
+        return
+    
+    try:
+        db = WeatherDatabase()
+        
+        # Check basic wind data availability
+        last_reading = db.get_last_reading()
+        wind_speed = last_reading.get('sensor_wind_speed') if last_reading else None
+        
+        # Get some wind readings
+        with db.gust_detector.db_path if db.gust_detector else db.db_path as path:
+            import sqlite3
+            with sqlite3.connect(path, timeout=30.0) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT timestamp, sensor_wind_speed
+                    FROM weather_readings 
+                    WHERE datetime(timestamp) >= datetime('now', '-1 hours')
+                    AND sensor_wind_speed IS NOT NULL
+                    ORDER BY timestamp DESC
+                    LIMIT 10
+                ''')
+                readings = cursor.fetchall()
+        
+        debug_info = f"🔍 **Gust Debug Info:**\n\n"
+        debug_info += f"• Last wind speed: {wind_speed} kn\n"
+        debug_info += f"• Recent readings count: {len(readings)}\n"
+        
+        if readings:
+            debug_info += f"• Recent wind speeds:\n"
+            for timestamp, speed in readings[:5]:
+                debug_info += f"  {timestamp[-8:]}: {speed:.1f} kn\n"
+        
+        # Test sustained wind calculation
+        if db.gust_detector:
+            sustained = db.gust_detector.calculate_sustained_wind(1.0)
+            debug_info += f"• Sustained wind (1h): {sustained}\n"
+        
+        await update.effective_message.reply_text(debug_info)
+        
+    except Exception as e:
+        logger.error(f"Debug error: {e}", exc_info=True)
+        await update.effective_message.reply_text(f"Debug error: {str(e)}")
 
 def main():
     """Start the bot."""
@@ -346,6 +627,8 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("status", system_status))
     application.add_handler(CommandHandler("weather", weather_station))
+    application.add_handler(CommandHandler("gusts", wind_gusts))
+    application.add_handler(CommandHandler("debug_gusts", debug_gusts))
     application.add_handler(CommandHandler("apps", list_apps))
     application.add_handler(CommandHandler("restart_app", restart_app))
     application.add_handler(CommandHandler("app", custom_app_control))

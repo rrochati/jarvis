@@ -7,11 +7,24 @@ import sys
 
 logger = logging.getLogger(__name__)
 
+# Import GustDetector with error handling
+try:
+    from .gust_detector import GustDetector
+    GUST_DETECTOR_AVAILABLE = True
+except ImportError as e:
+    logger.error(f"Could not import GustDetector: {e}")
+    GUST_DETECTOR_AVAILABLE = False
+
 DB_FILE = LOG_FILE = os.getenv("DB_FILE", "/home/rrocha/data/weather_data.db")
 
 class WeatherDatabase:
     def __init__(self, db_path: str = DB_FILE):
         self.db_path = db_path
+        if GUST_DETECTOR_AVAILABLE:
+            self.gust_detector = GustDetector(db_path)
+        else:
+            self.gust_detector = None
+            logger.warning("GustDetector not available")
     
     def get_recent_readings(self, hours: int = 24) -> List[Dict[str, Any]]:
         """Get recent weather readings from the last N hours."""
@@ -81,7 +94,7 @@ class WeatherDatabase:
     def get_period_statistics(self, hours: int) -> Dict[str, Any]:
         """Get statistics (max, min, avg) for sensor data over the specified period."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with sqlite3.connect(self.db_path, timeout=60.0) as conn:  # Increased timeout to 60 seconds
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT 
@@ -98,6 +111,9 @@ class WeatherDatabase:
                         MIN(sensor_altitude) as altitude_min,
                         MAX(sensor_altitude) as altitude_max,
                         AVG(sensor_altitude) as altitude_avg,
+                        MIN(sensor_wind_speed) as wind_speed_min,
+                        MAX(sensor_wind_speed) as wind_speed_max,
+                        AVG(sensor_wind_speed) as wind_speed_avg,
                         MIN(timestamp) as period_start,
                         MAX(timestamp) as period_end
                     FROM weather_readings 
@@ -105,12 +121,28 @@ class WeatherDatabase:
                 '''.format(hours))
                 
                 result = cursor.fetchone()
+                
+                # Get most frequent wind direction name
+                cursor.execute('''
+                    SELECT sensor_wind_direction_name, COUNT(*) as frequency
+                    FROM weather_readings 
+                    WHERE datetime(timestamp) >= datetime('now', '-{} hours')
+                    AND sensor_wind_direction_name IS NOT NULL
+                    AND sensor_wind_direction_name != ''
+                    GROUP BY sensor_wind_direction_name
+                    ORDER BY frequency DESC
+                    LIMIT 1
+                '''.format(hours))
+                
+                wind_direction_result = cursor.fetchone()
+                prevailing_wind = wind_direction_result[0] if wind_direction_result else None
+                
                 if result and result[0] > 0:  # Check if we have records
                     return {
                         'period_hours': hours,
                         'record_count': result[0],
-                        'period_start': result[13],
-                        'period_end': result[14],
+                        'period_start': result[16],
+                        'period_end': result[17],
                         'sensor_temperature': {
                             'min': round(result[1], 2) if result[1] is not None else None,
                             'max': round(result[2], 2) if result[2] is not None else None,
@@ -130,7 +162,13 @@ class WeatherDatabase:
                             'min': round(result[10], 2) if result[10] is not None else None,
                             'max': round(result[11], 2) if result[11] is not None else None,
                             'avg': round(result[12], 2) if result[12] is not None else None
-                        }
+                        },
+                        'wind_speed': {
+                            'min': round(result[13], 2) if result[13] is not None else None,
+                            'max': round(result[14], 2) if result[14] is not None else None,
+                            'avg': round(result[15], 2) if result[15] is not None else None
+                        },
+                        'prevailing_wind_direction': prevailing_wind
                     }
                 else:
                     return {
@@ -147,6 +185,22 @@ class WeatherDatabase:
         """Get statistics for the last 1 hour."""
         return self.get_period_statistics(1)
 
+    def last15min(self) -> Dict[str, Any]:
+        """Get statistics for the last 15 minutes."""
+        return self.get_period_statistics(0.25)
+
+    def last30min(self) -> Dict[str, Any]:
+        """Get statistics for the last 30 minutes."""
+        return self.get_period_statistics(0.5)
+
+    def last2h(self) -> Dict[str, Any]:
+        """Get statistics for the last 2 hours."""
+        return self.get_period_statistics(2)
+
+    def last6h(self) -> Dict[str, Any]:
+        """Get statistics for the last 6 hours."""
+        return self.get_period_statistics(6)
+
     def last12h(self) -> Dict[str, Any]:
         """Get statistics for the last 12 hours."""
         return self.get_period_statistics(12)
@@ -155,6 +209,28 @@ class WeatherDatabase:
         """Get statistics for the last 24 hours."""
         return self.get_period_statistics(24)
 
+    def last48h(self) -> Dict[str, Any]:
+        """Get statistics for the last 48 hours."""
+        return self.get_period_statistics(48)
+
     def last(self) -> Optional[Dict[str, Any]]:
         """Alias for get_last_reading() - Get the most recent weather reading."""
         return self.get_last_reading()
+
+    def get_gust_statistics(self, hours: float = 24.0) -> Dict[str, Any]:
+        """Get wind gust statistics for the specified period."""
+        if not self.gust_detector:
+            return {'error': 'Gust detector not available'}
+        return self.gust_detector.get_gust_statistics(hours)
+    
+    def detect_recent_gusts(self, hours: float = 1.0) -> List[Dict[str, Any]]:
+        """Detect recent wind gusts."""
+        if not self.gust_detector:
+            return []
+        return self.gust_detector.detect_recent_gusts(hours)
+    
+    def get_peak_gust(self, hours: float = 24.0) -> Optional[Dict[str, Any]]:
+        """Get peak gust in the specified period."""
+        if not self.gust_detector:
+            return None
+        return self.gust_detector.get_peak_gust(hours)
